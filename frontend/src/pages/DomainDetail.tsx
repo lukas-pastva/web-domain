@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { domainsApi, scraperApi, DomainDetail as DomainDetailType } from '../api/client';
+import { domainsApi, scraperApi, DomainDetail as DomainDetailType, Screenshot } from '../api/client';
 
 function DomainDetail() {
   const { id } = useParams<{ id: string }>();
   const [domain, setDomain] = useState<DomainDetailType | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'whois' | 'dns' | 'subdomains' | 'screenshots'>('whois');
+  const [activeTab, setActiveTab] = useState<'whois' | 'dns' | 'subdomains' | 'screenshots'>('screenshots');
   const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -42,18 +42,57 @@ function DomainDetail() {
 
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleString() : 'N/A';
 
+  // Build a map of subdomainId -> latest screenshot
+  const subScreenshotMap = new Map<number, Screenshot>();
+  for (const ss of domain.screenshots) {
+    if (ss.subdomainId) {
+      const existing = subScreenshotMap.get(ss.subdomainId);
+      if (!existing || new Date(ss.capturedAt) > new Date(existing.capturedAt)) {
+        subScreenshotMap.set(ss.subdomainId, ss);
+      }
+    }
+  }
+
+  // Get domain-level screenshot (no subdomainId)
+  const domainScreenshot = domain.screenshots.find(ss => !ss.subdomainId);
+
+  // Group screenshots by URL for the screenshots tab
+  const screenshotsByUrl = new Map<string, Screenshot[]>();
+  for (const ss of domain.screenshots) {
+    const key = ss.url;
+    if (!screenshotsByUrl.has(key)) {
+      screenshotsByUrl.set(key, []);
+    }
+    screenshotsByUrl.get(key)!.push(ss);
+  }
+
   return (
     <div>
       <div className="page-header">
-        <div>
-          <button className="btn btn-sm btn-secondary" onClick={() => navigate('/domains')} style={{ marginBottom: '0.5rem' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <polyline points="15 18 9 12 15 6"/>
-            </svg>
-            Back
-          </button>
-          <h1>{domain.name}</h1>
-          {domain.notes && <p style={{ color: 'var(--text-muted)', marginTop: '0.25rem' }}>{domain.notes}</p>}
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.5rem' }}>
+          <div>
+            <button className="btn btn-sm btn-secondary" onClick={() => navigate('/domains')} style={{ marginBottom: '0.5rem' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="15 18 9 12 15 6"/>
+              </svg>
+              Back
+            </button>
+            <h1>{domain.name}</h1>
+            {domain.notes && <p style={{ color: 'var(--text-muted)', marginTop: '0.25rem' }}>{domain.notes}</p>}
+          </div>
+          {domainScreenshot && (
+            <img
+              src={`/api/images/${domainScreenshot.localPath}`}
+              alt={domain.name}
+              style={{
+                width: '120px', height: '80px', objectFit: 'cover',
+                borderRadius: '8px', border: '1px solid var(--border)',
+                cursor: 'pointer', flexShrink: 0,
+              }}
+              onClick={() => setSelectedScreenshot(domainScreenshot.localPath)}
+              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+            />
+          )}
         </div>
         <button className="btn btn-primary" onClick={handleScrape}>Scrape Now</button>
       </div>
@@ -81,7 +120,7 @@ function DomainDetail() {
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>
-        {(['whois', 'dns', 'subdomains', 'screenshots'] as const).map(tab => (
+        {(['screenshots', 'subdomains', 'dns', 'whois'] as const).map(tab => (
           <button key={tab} className={`btn ${activeTab === tab ? 'btn-primary' : 'btn-secondary'}`}
             onClick={() => setActiveTab(tab)}>
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -91,6 +130,118 @@ function DomainDetail() {
           </button>
         ))}
       </div>
+
+      {/* Screenshots Tab */}
+      {activeTab === 'screenshots' && (
+        <div className="card">
+          <h2 style={{ marginBottom: '1rem' }}>Screenshots</h2>
+          {domain.screenshots.length === 0 ? (
+            <p className="text-muted">No screenshots yet. Run a scrape to capture them.</p>
+          ) : (
+            <div>
+              {Array.from(screenshotsByUrl.entries()).map(([url, screenshots]) => (
+                <div key={url} style={{ marginBottom: '1.5rem' }}>
+                  <div style={{
+                    fontSize: '0.85rem', fontWeight: 500, marginBottom: '0.5rem',
+                    color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem',
+                  }}>
+                    <span className={`badge ${screenshots[0].type === 'domain' ? 'badge-info' : 'badge-success'}`}>
+                      {screenshots[0].type}
+                    </span>
+                    <span style={{ wordBreak: 'break-all' }}>{url}</span>
+                    {screenshots[0].httpStatus && (
+                      <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>HTTP {screenshots[0].httpStatus}</span>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '0.75rem', overflowX: 'auto', paddingBottom: '0.5rem' }}>
+                    {screenshots.map(ss => (
+                      <div key={ss.id} style={{
+                        flexShrink: 0, cursor: 'pointer',
+                        border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden',
+                        background: 'var(--bg-primary)',
+                      }} onClick={() => setSelectedScreenshot(ss.localPath)}>
+                        <img src={`/api/images/${ss.localPath}`} alt={ss.url}
+                          style={{ width: '280px', height: '180px', objectFit: 'cover', display: 'block' }}
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                        <div style={{ padding: '0.5rem', fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                          {new Date(ss.capturedAt).toLocaleString()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Subdomains Tab */}
+      {activeTab === 'subdomains' && (
+        <div className="card">
+          <h2 style={{ marginBottom: '1rem' }}>Subdomains</h2>
+          {domain.subdomains.length === 0 ? (
+            <p className="text-muted">No subdomains discovered yet.</p>
+          ) : (
+            <div className="table-wrapper">
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Preview</th>
+                    <th>Subdomain</th>
+                    <th>IP</th>
+                    <th>Active</th>
+                    <th>First Seen</th>
+                    <th>Last Seen</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {domain.subdomains.map(sub => {
+                    const subSS = subScreenshotMap.get(sub.id);
+                    return (
+                      <tr key={sub.id}>
+                        <td style={{ width: '80px', padding: '0.5rem' }}>
+                          {subSS ? (
+                            <img
+                              src={`/api/images/${subSS.localPath}`}
+                              alt={sub.name}
+                              style={{
+                                width: '64px', height: '48px', objectFit: 'cover',
+                                borderRadius: '4px', border: '1px solid var(--border)',
+                                cursor: 'pointer', display: 'block',
+                              }}
+                              onClick={() => setSelectedScreenshot(subSS.localPath)}
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                            />
+                          ) : (
+                            <div style={{
+                              width: '64px', height: '48px', borderRadius: '4px',
+                              background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              color: 'var(--text-muted)', fontSize: '0.6rem',
+                            }}>
+                              No img
+                            </div>
+                          )}
+                        </td>
+                        <td style={{ fontWeight: 500 }}>{sub.name}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{sub.ip || '-'}</td>
+                        <td>
+                          <span className={`badge ${sub.active ? 'badge-success' : 'badge-warning'}`}>
+                            {sub.active ? 'Active' : 'Inactive'}
+                          </span>
+                        </td>
+                        <td style={{ fontSize: '0.85rem' }}>{new Date(sub.firstSeenAt).toLocaleDateString()}</td>
+                        <td style={{ fontSize: '0.85rem' }}>{new Date(sub.lastSeenAt).toLocaleDateString()}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* WHOIS Tab */}
       {activeTab === 'whois' && (
@@ -177,78 +328,6 @@ function DomainDetail() {
                   ))}
                 </tbody>
               </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Subdomains Tab */}
-      {activeTab === 'subdomains' && (
-        <div className="card">
-          <h2 style={{ marginBottom: '1rem' }}>Subdomains</h2>
-          {domain.subdomains.length === 0 ? (
-            <p className="text-muted">No subdomains discovered yet.</p>
-          ) : (
-            <div className="table-wrapper">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Subdomain</th>
-                    <th>IP</th>
-                    <th>Active</th>
-                    <th>First Seen</th>
-                    <th>Last Seen</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {domain.subdomains.map(sub => (
-                    <tr key={sub.id}>
-                      <td style={{ fontWeight: 500 }}>{sub.name}</td>
-                      <td style={{ fontFamily: 'monospace', fontSize: '0.85rem' }}>{sub.ip || '-'}</td>
-                      <td>
-                        <span className={`badge ${sub.active ? 'badge-success' : 'badge-warning'}`}>
-                          {sub.active ? 'Active' : 'Inactive'}
-                        </span>
-                      </td>
-                      <td style={{ fontSize: '0.85rem' }}>{new Date(sub.firstSeenAt).toLocaleDateString()}</td>
-                      <td style={{ fontSize: '0.85rem' }}>{new Date(sub.lastSeenAt).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* Screenshots Tab */}
-      {activeTab === 'screenshots' && (
-        <div className="card">
-          <h2 style={{ marginBottom: '1rem' }}>Screenshots</h2>
-          {domain.screenshots.length === 0 ? (
-            <p className="text-muted">No screenshots yet.</p>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
-              {domain.screenshots.map(ss => (
-                <div key={ss.id} style={{
-                  background: 'var(--bg-primary)', borderRadius: '8px', overflow: 'hidden', cursor: 'pointer',
-                  border: '1px solid var(--border)'
-                }} onClick={() => setSelectedScreenshot(ss.localPath)}>
-                  <img src={`/api/images/${ss.localPath}`} alt={ss.url}
-                    style={{ width: '100%', height: '180px', objectFit: 'cover' }}
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                  <div style={{ padding: '0.75rem' }}>
-                    <div style={{ fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.25rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {ss.url}
-                    </div>
-                    <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', display: 'flex', gap: '0.5rem' }}>
-                      <span className={`badge ${ss.type === 'domain' ? 'badge-info' : 'badge-success'}`}>{ss.type}</span>
-                      {ss.httpStatus && <span>HTTP {ss.httpStatus}</span>}
-                      <span>{new Date(ss.capturedAt).toLocaleDateString()}</span>
-                    </div>
-                  </div>
-                </div>
-              ))}
             </div>
           )}
         </div>

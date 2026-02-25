@@ -18,6 +18,7 @@ export interface Domain {
   subdomainCount?: number;
   dnsRecordCount?: number;
   screenshotCount?: number;
+  latestScreenshotPath?: string | null;
 }
 
 export interface DomainInfo {

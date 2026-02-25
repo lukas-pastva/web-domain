@@ -58,7 +58,8 @@ function Domains() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const handleDelete = async (id: number, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await domainsApi.delete(id);
       setMessage({ type: 'success', text: 'Domain deleted' });
@@ -68,7 +69,8 @@ function Domains() {
     }
   };
 
-  const handleToggleActive = async (domain: Domain) => {
+  const handleToggleActive = async (domain: Domain, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await domainsApi.update(domain.id, { active: !domain.active });
       fetchDomains();
@@ -77,7 +79,8 @@ function Domains() {
     }
   };
 
-  const handleScrape = async (domainId: number) => {
+  const handleScrape = async (domainId: number, e: React.MouseEvent) => {
+    e.stopPropagation();
     try {
       await scraperApi.triggerDomain(domainId);
       setMessage({ type: 'success', text: 'Scrape started for domain' });
@@ -117,6 +120,7 @@ function Domains() {
             <table className="table">
               <thead>
                 <tr>
+                  <th>Preview</th>
                   <th>Domain</th>
                   <th>Active</th>
                   <th>Subdomains</th>
@@ -128,12 +132,37 @@ function Domains() {
               </thead>
               <tbody>
                 {domains.map(domain => (
-                  <tr key={domain.id}>
+                  <tr key={domain.id} onClick={() => navigate(`/domains/${domain.id}`)}
+                    style={{ cursor: 'pointer' }}>
+                    <td style={{ width: '80px', padding: '0.5rem' }}>
+                      {domain.latestScreenshotPath ? (
+                        <img
+                          src={`/api/images/${domain.latestScreenshotPath}`}
+                          alt={domain.name}
+                          style={{
+                            width: '64px', height: '48px', objectFit: 'cover',
+                            borderRadius: '4px', border: '1px solid var(--border)',
+                            display: 'block',
+                          }}
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div style={{
+                          width: '64px', height: '48px', borderRadius: '4px',
+                          background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          color: 'var(--text-muted)', fontSize: '0.6rem',
+                        }}>
+                          No img
+                        </div>
+                      )}
+                    </td>
                     <td>
-                      <a href="#" onClick={(e) => { e.preventDefault(); navigate(`/domains/${domain.id}`); }}
-                        style={{ fontWeight: 500 }}>
+                      <span style={{ fontWeight: 500, color: 'var(--accent)' }}>
                         {domain.name}
-                      </a>
+                      </span>
                       {domain.notes && (
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{domain.notes}</div>
                       )}
@@ -141,7 +170,7 @@ function Domains() {
                     <td>
                       <span
                         className={`badge ${domain.active ? 'badge-success' : 'badge-warning'}`}
-                        onClick={() => handleToggleActive(domain)}
+                        onClick={(e) => handleToggleActive(domain, e)}
                         style={{ cursor: 'pointer' }}
                       >
                         {domain.active ? 'Active' : 'Inactive'}
@@ -155,12 +184,12 @@ function Domains() {
                     </td>
                     <td>
                       <div style={{ display: 'flex', gap: '0.25rem' }}>
-                        <button className="btn btn-sm btn-primary" onClick={() => handleScrape(domain.id)} title="Scrape now">
+                        <button className="btn btn-sm btn-primary" onClick={(e) => handleScrape(domain.id, e)} title="Scrape now">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <path d="M21 12a9 9 0 1 1-6.219-8.56"/>
                           </svg>
                         </button>
-                        <button className="btn btn-sm btn-danger" onClick={() => handleDelete(domain.id)} title="Delete">
+                        <button className="btn btn-sm btn-danger" onClick={(e) => handleDelete(domain.id, e)} title="Delete">
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                             <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
                           </svg>

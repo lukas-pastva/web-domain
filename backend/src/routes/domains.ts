@@ -17,12 +17,22 @@ router.get('/', async (_req: Request, res: Response) => {
       order: { name: 'ASC' },
     });
 
-    // Get counts for each domain
+    // Get counts and latest screenshot for each domain
     const domainsWithCounts = await Promise.all(domains.map(async (domain) => {
       const subCount = await AppDataSource.getRepository(Subdomain).count({ where: { domainId: domain.id } });
       const dnsCount = await AppDataSource.getRepository(DnsRecord).count({ where: { domainId: domain.id } });
       const ssCount = await AppDataSource.getRepository(Screenshot).count({ where: { domainId: domain.id } });
-      return { ...domain, subdomainCount: subCount, dnsRecordCount: dnsCount, screenshotCount: ssCount };
+      const latestScreenshot = await AppDataSource.getRepository(Screenshot).findOne({
+        where: { domainId: domain.id },
+        order: { capturedAt: 'DESC' },
+      });
+      return {
+        ...domain,
+        subdomainCount: subCount,
+        dnsRecordCount: dnsCount,
+        screenshotCount: ssCount,
+        latestScreenshotPath: latestScreenshot?.localPath || null,
+      };
     }));
 
     res.json(domainsWithCounts);
