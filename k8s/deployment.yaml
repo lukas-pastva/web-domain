@@ -1,0 +1,106 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web-domain
+  labels:
+    app: web-domain
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: web-domain
+  template:
+    metadata:
+      labels:
+        app: web-domain
+    spec:
+      containers:
+        - name: web-domain
+          image: ghcr.io/lukas-pastva/web-domain:latest
+          ports:
+            - containerPort: 3000
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: web-domain-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: web-domain-config
+                  key: DB_PORT
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: web-domain-config
+                  key: DB_NAME
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: web-domain-secrets
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: web-domain-secrets
+                  key: DB_PASSWORD
+            - name: PVC_MOUNT_PATH
+              value: /data/images
+          volumeMounts:
+            - name: images-storage
+              mountPath: /data/images
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+      volumes:
+        - name: images-storage
+          persistentVolumeClaim:
+            claimName: web-domain-images-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web-domain
+spec:
+  selector:
+    app: web-domain
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 3000
+  type: ClusterIP
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: web-domain-config
+data:
+  DB_HOST: "mariadb"
+  DB_PORT: "3306"
+  DB_NAME: "domain"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: web-domain-secrets
+type: Opaque
+stringData:
+  DB_USER: domain
+  DB_PASSWORD: your-secure-password-here

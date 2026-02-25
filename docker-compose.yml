@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  web-domain:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=mariadb
+      - DB_PORT=3306
+      - DB_USER=domain
+      - DB_PASSWORD=secret
+      - DB_NAME=domain
+      - PVC_MOUNT_PATH=/data/images
+    volumes:
+      - domain-images:/data/images
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+  mariadb:
+    image: mariadb:10.11
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootsecret
+      - MYSQL_DATABASE=domain
+      - MYSQL_USER=domain
+      - MYSQL_PASSWORD=secret
+    volumes:
+      - mariadb-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  domain-images:
+  mariadb-data:
