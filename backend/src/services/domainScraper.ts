@@ -96,13 +96,13 @@ export const scrapeAllDomains = async (configId?: number): Promise<void> => {
         }
 
         // Subdomain discovery
-        let subdomainNames: string[] = [];
+        let subdomainEntries: { id: number; name: string }[] = [];
         if (!config || config.enableSubdomains) {
           try {
             const subs = await discoverSubdomains(domain.id, domain.name);
             stats.subdomainsFound += subs.length;
             run.subdomainsFound += subs.length;
-            subdomainNames = subs.filter(s => s.active).map(s => s.name);
+            subdomainEntries = subs.filter(s => s.active).map(s => ({ id: s.id, name: s.name }));
           } catch (err) {
             console.error(`Subdomain discovery failed for ${domain.name}:`, err);
             stats.errors++;
@@ -117,7 +117,7 @@ export const scrapeAllDomains = async (configId?: number): Promise<void> => {
               domain.id,
               domain.name,
               !config || config.enableSubdomains,
-              subdomainNames
+              subdomainEntries
             );
             stats.screenshotsTaken += ssResult.taken;
             run.screenshotsTaken += ssResult.taken;
@@ -191,7 +191,7 @@ export const scrapeSingleDomain = async (domainId: number): Promise<void> => {
 
     const ssResult = await takeScreenshotsForDomain(
       domain.id, domain.name, true,
-      subs.filter(s => s.active).map(s => s.name)
+      subs.filter(s => s.active).map(s => ({ id: s.id, name: s.name }))
     );
     run.screenshotsTaken = ssResult.taken;
     run.errorsCount = ssResult.errors;

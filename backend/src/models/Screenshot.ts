@@ -27,6 +27,9 @@ export class Screenshot {
   @Column({ type: 'int', nullable: true })
   httpStatus!: number | null;
 
+  @Column({ type: 'varchar', length: 64, nullable: true })
+  imageHash!: string | null;
+
   @CreateDateColumn()
   capturedAt!: Date;
 

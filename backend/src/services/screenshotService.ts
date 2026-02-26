@@ -1,6 +1,7 @@
 import puppeteer, { Browser } from 'puppeteer';
 import path from 'path';
 import fs from 'fs';
+import crypto from 'crypto';
 import { AppDataSource } from '../config/database';
 import { Screenshot } from '../models/Screenshot';
 import { getSettingNumber, getSettingBoolean } from './settings';
@@ -74,8 +75,25 @@ export const takeScreenshot = async (
     });
 
     httpStatus = response?.status() || null;
-    await page.screenshot({ path: fullPath, fullPage: false });
+    const buffer = await page.screenshot({ fullPage: false }) as Buffer;
     await page.close();
+
+    // Compute hash for deduplication
+    const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
+
+    // Check if latest screenshot for same domain+url has the same hash
+    const latest = await screenshotRepo.findOne({
+      where: { domainId, url },
+      order: { capturedAt: 'DESC' },
+    });
+
+    if (latest && latest.imageHash === imageHash) {
+      // Content unchanged — skip saving
+      return null;
+    }
+
+    // Write buffer to file
+    fs.writeFileSync(fullPath, buffer);
 
     const screenshot = new Screenshot();
     screenshot.domainId = domainId;
@@ -85,6 +103,7 @@ export const takeScreenshot = async (
     screenshot.filename = filename;
     screenshot.type = type;
     screenshot.httpStatus = httpStatus;
+    screenshot.imageHash = imageHash;
 
     return await screenshotRepo.save(screenshot);
   } catch (err) {
@@ -97,7 +116,7 @@ export const takeScreenshotsForDomain = async (
   domainId: number,
   domainName: string,
   includeSubdomains: boolean = true,
-  subdomainNames: string[] = []
+  subdomains: { id: number; name: string }[] = []
 ): Promise<{ taken: number; errors: number }> => {
   let taken = 0;
   let errors = 0;
@@ -114,9 +133,9 @@ export const takeScreenshotsForDomain = async (
   if (includeSubdomains) {
     const shouldScreenshotSubs = await getSettingBoolean('screenshot_subdomains', true);
     if (shouldScreenshotSubs) {
-      for (const sub of subdomainNames) {
-        if (sub === domainName) continue;
-        const result = await takeScreenshot(domainId, `https://${sub}`, 'subdomain');
+      for (const sub of subdomains) {
+        if (sub.name === domainName) continue;
+        const result = await takeScreenshot(domainId, `https://${sub.name}`, 'subdomain', sub.id);
         if (result) taken++;
         else errors++;
       }
