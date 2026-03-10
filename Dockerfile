@@ -1,16 +1,17 @@
 # Build frontend
 FROM node:20-alpine AS frontend-builder
 WORKDIR /app/frontend
-COPY frontend/package.json ./
-RUN npm install
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
 COPY frontend/ ./
 RUN npm run build
 
 # Build backend
 FROM node:20-alpine AS backend-builder
 WORKDIR /app/backend
-COPY backend/package.json ./
-RUN npm install
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci
 COPY backend/ ./
 RUN npm run build
 
@@ -35,8 +36,9 @@ ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Install production dependencies for backend
-COPY backend/package.json ./
-RUN npm install --only=production
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+COPY backend/package.json backend/package-lock.json ./
+RUN npm ci --only=production
 
 # Copy built backend
 COPY --from=backend-builder /app/backend/dist ./dist
