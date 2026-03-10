@@ -6,10 +6,8 @@ function Domains() {
   const [domains, setDomains] = useState<Domain[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [showBulkModal, setShowBulkModal] = useState(false);
   const [newDomain, setNewDomain] = useState('');
   const [newNotes, setNewNotes] = useState('');
-  const [bulkDomains, setBulkDomains] = useState('');
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const navigate = useNavigate();
 
@@ -41,20 +39,6 @@ function Domains() {
     } catch (error: unknown) {
       const err = error as { response?: { data?: { error?: string } } };
       setMessage({ type: 'error', text: err.response?.data?.error || 'Failed to add domain' });
-    }
-  };
-
-  const handleBulkAdd = async () => {
-    const names = bulkDomains.split('\n').map(d => d.trim()).filter(Boolean);
-    if (names.length === 0) return;
-    try {
-      const res = await domainsApi.createBulk(names);
-      setBulkDomains('');
-      setShowBulkModal(false);
-      setMessage({ type: 'success', text: `Added ${res.data.added}, skipped ${res.data.skipped} duplicates` });
-      fetchDomains();
-    } catch (error) {
-      setMessage({ type: 'error', text: 'Failed to bulk add domains' });
     }
   };
 
@@ -95,10 +79,7 @@ function Domains() {
     <div>
       <div className="page-header">
         <h1>Domains ({domains.length})</h1>
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
-          <button className="btn btn-secondary" onClick={() => setShowBulkModal(true)}>Bulk Add</button>
-          <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>Add Domain</button>
-        </div>
+        <button className="btn btn-primary" onClick={() => setShowAddModal(true)}>Add Domain</button>
       </div>
 
       {message && (
@@ -228,31 +209,6 @@ function Domains() {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setShowAddModal(false)}>Cancel</button>
               <button className="btn btn-primary" onClick={handleAdd}>Add</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Add Modal */}
-      {showBulkModal && (
-        <div className="modal-overlay" onClick={() => setShowBulkModal(false)}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>Bulk Add Domains</h2>
-              <button className="btn btn-sm btn-secondary" onClick={() => setShowBulkModal(false)}>
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Domains (one per line)</label>
-                <textarea value={bulkDomains} onChange={e => setBulkDomains(e.target.value)}
-                  placeholder={"example.com\nexample.org\nexample.net"} rows={10} />
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowBulkModal(false)}>Cancel</button>
-              <button className="btn btn-primary" onClick={handleBulkAdd}>Add All</button>
             </div>
           </div>
         </div>
