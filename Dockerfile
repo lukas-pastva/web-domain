@@ -9,7 +9,6 @@ RUN npm run build
 # Build backend
 FROM node:20-alpine AS backend-builder
 WORKDIR /app/backend
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci
 COPY backend/ ./
@@ -31,12 +30,10 @@ RUN apk add --no-cache \
     bind-tools \
     && rm -rf /var/cache/apk/*
 
-# Tell Puppeteer to skip installing Chromium. We'll use the one from alpine.
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+# Tell Puppeteer to use the Chromium from alpine
 ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Install production dependencies for backend
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
 COPY backend/package.json backend/package-lock.json ./
 RUN npm ci --only=production
 
