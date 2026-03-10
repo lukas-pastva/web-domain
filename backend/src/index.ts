@@ -13,6 +13,7 @@ import scraperRouter from './routes/scraper';
 import scrapeConfigsRouter from './routes/scrapeConfigs';
 import scrapeHistoryRouter from './routes/scrapeHistory';
 import settingsRouter from './routes/settings';
+import cleanupRouter from './routes/cleanup';
 
 dotenv.config();
 
@@ -27,6 +28,7 @@ app.use('/api/scraper', scraperRouter);
 app.use('/api/scrape-configs', scrapeConfigsRouter);
 app.use('/api/scrape-history', scrapeHistoryRouter);
 app.use('/api/settings', settingsRouter);
+app.use('/api/cleanup', cleanupRouter);
 
 app.get('/api/images/:path(*)', (req, res) => {
   const imagePath = req.params.path;

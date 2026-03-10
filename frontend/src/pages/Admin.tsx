@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { settingsApi, scrapeConfigsApi, scraperApi, domainsApi, Setting, ScrapeConfig, Domain } from '../api/client';
+import { settingsApi, scrapeConfigsApi, scraperApi, domainsApi, cleanupApi, Setting, ScrapeConfig, Domain, CleanupScan } from '../api/client';
 
 const SETTING_LABELS: Record<string, { label: string; unit?: string; type: 'number' | 'text' | 'boolean' }> = {
   scrape_interval_min: { label: 'Scrape interval min', unit: 'min', type: 'number' },
@@ -24,6 +24,9 @@ function Admin() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [cleanupScan, setCleanupScan] = useState<CleanupScan | null>(null);
+  const [scanning, setScanning] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
   const [showConfigModal, setShowConfigModal] = useState(false);
   const [editingConfig, setEditingConfig] = useState<ScrapeConfig | null>(null);
   const [configForm, setConfigForm] = useState({
@@ -139,6 +142,48 @@ function Admin() {
       setMessage({ type: 'error', text: 'Failed to trigger scrape' });
     }
   };
+
+  const handleScan = async () => {
+    try {
+      setScanning(true);
+      const res = await cleanupApi.scan();
+      setCleanupScan(res.data);
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to scan' });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const handleCleanup = async () => {
+    if (!cleanupScan) return;
+    try {
+      setCleaning(true);
+      const actions = {
+        dropTables: cleanupScan.unknownTables.length > 0,
+        dropColumns: cleanupScan.unknownColumns.length > 0,
+        deleteOrphanedScreenshots: cleanupScan.orphanedScreenshotRows > 0,
+        deleteScrapeRuns: cleanupScan.orphanedScrapeRuns > 0,
+        deleteOrphanedFiles: cleanupScan.orphanedFiles.length > 0 || cleanupScan.orphanedDirs.length > 0,
+      };
+      const res = await cleanupApi.execute(actions);
+      setMessage({ type: 'success', text: res.data.results.join('; ') });
+      setCleanupScan(null);
+    } catch {
+      setMessage({ type: 'error', text: 'Failed to execute cleanup' });
+    } finally {
+      setCleaning(false);
+    }
+  };
+
+  const scanHasIssues = cleanupScan && (
+    cleanupScan.unknownTables.length > 0 ||
+    cleanupScan.unknownColumns.length > 0 ||
+    cleanupScan.orphanedScreenshotRows > 0 ||
+    cleanupScan.orphanedScrapeRuns > 0 ||
+    cleanupScan.orphanedFiles.length > 0 ||
+    cleanupScan.orphanedDirs.length > 0
+  );
 
   if (loading) return <div className="empty-state">Loading...</div>;
 
@@ -259,6 +304,64 @@ function Admin() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Cleanup */}
+      <div className="card" style={{ marginTop: '1rem', padding: '1rem' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+          <h3>Database & File Cleanup</h3>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <button className="btn btn-sm btn-secondary" onClick={handleScan} disabled={scanning}>
+              {scanning ? 'Scanning...' : 'Scan'}
+            </button>
+            {scanHasIssues && (
+              <button className="btn btn-sm btn-danger" onClick={handleCleanup} disabled={cleaning}>
+                {cleaning ? 'Cleaning...' : 'Clean All'}
+              </button>
+            )}
+          </div>
+        </div>
+        {cleanupScan ? (
+          scanHasIssues ? (
+            <div style={{ fontSize: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+              {cleanupScan.unknownTables.length > 0 && (
+                <div style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-secondary)', borderRadius: '4px' }}>
+                  <span style={{ color: 'var(--error)', fontWeight: 500 }}>Unknown tables:</span>{' '}
+                  {cleanupScan.unknownTables.join(', ')}
+                </div>
+              )}
+              {cleanupScan.unknownColumns.length > 0 && cleanupScan.unknownColumns.map(uc => (
+                <div key={uc.table} style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-secondary)', borderRadius: '4px' }}>
+                  <span style={{ color: 'var(--error)', fontWeight: 500 }}>Unknown columns in {uc.table}:</span>{' '}
+                  {uc.columns.join(', ')}
+                </div>
+              ))}
+              {cleanupScan.orphanedScreenshotRows > 0 && (
+                <div style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-secondary)', borderRadius: '4px' }}>
+                  <span style={{ color: 'var(--warning)', fontWeight: 500 }}>Orphaned screenshot rows:</span>{' '}
+                  {cleanupScan.orphanedScreenshotRows}
+                </div>
+              )}
+              {cleanupScan.orphanedScrapeRuns > 0 && (
+                <div style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-secondary)', borderRadius: '4px' }}>
+                  <span style={{ color: 'var(--warning)', fontWeight: 500 }}>Scrape run history:</span>{' '}
+                  {cleanupScan.orphanedScrapeRuns} records
+                </div>
+              )}
+              {(cleanupScan.orphanedFiles.length > 0 || cleanupScan.orphanedDirs.length > 0) && (
+                <div style={{ padding: '0.4rem 0.6rem', background: 'var(--bg-secondary)', borderRadius: '4px' }}>
+                  <span style={{ color: 'var(--warning)', fontWeight: 500 }}>Orphaned files:</span>{' '}
+                  {cleanupScan.orphanedFiles.length} files, {cleanupScan.orphanedDirs.length} dirs
+                  {cleanupScan.totalFileSize > 0 && ` (${(cleanupScan.totalFileSize / 1024 / 1024).toFixed(1)} MB)`}
+                </div>
+              )}
+            </div>
+          ) : (
+            <p style={{ color: 'var(--success)', fontSize: '0.85rem' }}>No issues found. Database and files are clean.</p>
+          )
+        ) : (
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Click Scan to check for orphaned data, unknown tables/columns, and orphaned files.</p>
+        )}
       </div>
 
       {/* Config Modal */}

@@ -201,4 +201,27 @@ export const settingsApi = {
   updateBulk: (updates: { key: string; value: string }[]) => api.put<Setting[]>('/settings', updates),
 };
 
+export interface CleanupScan {
+  unknownTables: string[];
+  unknownColumns: { table: string; columns: string[] }[];
+  orphanedScreenshotRows: number;
+  orphanedScrapeRuns: number;
+  orphanedFiles: string[];
+  orphanedDirs: string[];
+  totalFileSize: number;
+}
+
+export interface CleanupActions {
+  dropTables?: boolean;
+  dropColumns?: boolean;
+  deleteOrphanedScreenshots?: boolean;
+  deleteScrapeRuns?: boolean;
+  deleteOrphanedFiles?: boolean;
+}
+
+export const cleanupApi = {
+  scan: () => api.get<CleanupScan>('/cleanup/scan'),
+  execute: (actions: CleanupActions) => api.post<{ success: boolean; results: string[] }>('/cleanup/execute', { actions }),
+};
+
 export default api;
