@@ -7,7 +7,7 @@ function DomainDetail() {
   const [domain, setDomain] = useState<DomainDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'subdomains' | 'dns' | 'whois'>('subdomains');
-  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryScreenshots, setGalleryScreenshots] = useState<Screenshot[]>([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const navigate = useNavigate();
 
@@ -62,55 +62,45 @@ function DomainDetail() {
     (a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime()
   );
 
+  const domainOnlyScreenshots = allScreenshots.filter(s => !s.subdomainId);
+
+  const openGallery = (screenshots: Screenshot[], startIndex: number = 0) => {
+    setGalleryScreenshots(screenshots);
+    setGalleryIndex(startIndex);
+  };
+
   return (
     <div>
-      <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '1.5rem' }}>
-          <div>
-            <button className="btn btn-sm btn-secondary" onClick={() => navigate('/')} style={{ marginBottom: '0.5rem' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="15 18 9 12 15 6"/>
-              </svg>
-              Back
-            </button>
-            <h1>{domain.name}</h1>
-            {domain.notes && <p style={{ color: 'var(--text-muted)', marginTop: '0.25rem' }}>{domain.notes}</p>}
-          </div>
-          {domainScreenshot && (
-            <img
-              src={`/api/images/${domainScreenshot.localPath}`}
-              alt={domain.name}
-              style={{
-                width: '120px', height: '80px', objectFit: 'cover',
-                borderRadius: '8px', border: '1px solid var(--border)',
-                cursor: 'pointer', flexShrink: 0,
-              }}
-              onClick={() => { setGalleryIndex(0); setGalleryOpen(true); }}
-              onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-            />
-          )}
+      {/* Compact header */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+        <button className="btn btn-sm btn-secondary" onClick={() => navigate('/')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        {domainScreenshot && (
+          <img
+            src={`/api/images/${domainScreenshot.localPath}`}
+            alt={domain.name}
+            style={{
+              width: '64px', height: '44px', objectFit: 'cover',
+              borderRadius: '6px', border: '1px solid var(--border)',
+              cursor: 'pointer', flexShrink: 0,
+            }}
+            onClick={() => openGallery(domainOnlyScreenshots)}
+            onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+          />
+        )}
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', lineHeight: 1.2 }}>{domain.name}</h1>
+          {domain.notes && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{domain.notes}</span>}
         </div>
-        <button className="btn btn-primary" onClick={handleScrape}>Scrape Now</button>
-      </div>
-
-      {/* Quick Stats */}
-      <div className="grid grid-4" style={{ marginBottom: '1.5rem' }}>
-        <div className="stat-card">
-          <h3>Subdomains</h3>
-          <div className="value">{domain.subdomains.length}</div>
-          <div className="subtitle">{domain.subdomains.filter(s => s.active).length} active</div>
-        </div>
-        <div className="stat-card">
-          <h3>DNS Records</h3>
-          <div className="value">{domain.dnsRecords.length}</div>
-        </div>
-        <div className="stat-card">
-          <h3>Screenshots</h3>
-          <div className="value">{domain.screenshots.length}</div>
-        </div>
-        <div className="stat-card">
-          <h3>Last Scraped</h3>
-          <div className="value" style={{ fontSize: '1rem' }}>{domain.lastScrapedAt ? new Date(domain.lastScrapedAt).toLocaleDateString() : 'Never'}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span title="Subdomains">{domain.subdomains.length} subs ({domain.subdomains.filter(s => s.active).length} active)</span>
+          <span title="DNS Records">{domain.dnsRecords.length} DNS</span>
+          <span title="Screenshots">{domain.screenshots.length} pics</span>
+          <span title="Last Scraped">{domain.lastScrapedAt ? new Date(domain.lastScrapedAt).toLocaleDateString() : 'Never'}</span>
+          <button className="btn btn-sm btn-primary" onClick={handleScrape}>Scrape</button>
         </div>
       </div>
 
@@ -162,9 +152,8 @@ function DomainDetail() {
                                   cursor: 'pointer', display: 'block',
                                 }}
                                 onClick={() => {
-                                  const idx = allScreenshots.findIndex(s => s.id === subSS.id);
-                                  setGalleryIndex(idx >= 0 ? idx : 0);
-                                  setGalleryOpen(true);
+                                  const subScreenshots = allScreenshots.filter(s => s.subdomainId === sub.id);
+                                  openGallery(subScreenshots);
                                 }}
                                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                               />
@@ -291,14 +280,14 @@ function DomainDetail() {
       )}
 
       {/* Screenshot Gallery Lightbox */}
-      {galleryOpen && allScreenshots.length > 0 && (
+      {galleryScreenshots.length > 0 && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center',
           zIndex: 1000, padding: '2rem',
-        }} onClick={() => setGalleryOpen(false)}>
-          {allScreenshots.length > 1 && (
-            <button onClick={(e) => { e.stopPropagation(); setGalleryIndex((galleryIndex - 1 + allScreenshots.length) % allScreenshots.length); }}
+        }} onClick={() => setGalleryScreenshots([])}>
+          {galleryScreenshots.length > 1 && (
+            <button onClick={(e) => { e.stopPropagation(); setGalleryIndex((galleryIndex - 1 + galleryScreenshots.length) % galleryScreenshots.length); }}
               style={{
                 position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)',
                 background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
@@ -307,15 +296,15 @@ function DomainDetail() {
               }}>&#8249;</button>
           )}
           <div onClick={e => e.stopPropagation()} style={{ textAlign: 'center', maxWidth: '90%' }}>
-            <img src={`/api/images/${allScreenshots[galleryIndex].localPath}`} alt="Screenshot"
+            <img src={`/api/images/${galleryScreenshots[galleryIndex].localPath}`} alt="Screenshot"
               style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '8px' }} />
             <div style={{ color: 'rgba(255,255,255,0.7)', marginTop: '0.75rem', fontSize: '0.85rem' }}>
-              <div>{allScreenshots[galleryIndex].url}</div>
-              <div>{new Date(allScreenshots[galleryIndex].capturedAt).toLocaleString()} &mdash; {galleryIndex + 1} / {allScreenshots.length}</div>
+              <div>{galleryScreenshots[galleryIndex].url}</div>
+              <div>{new Date(galleryScreenshots[galleryIndex].capturedAt).toLocaleString()} &mdash; {galleryIndex + 1} / {galleryScreenshots.length}</div>
             </div>
           </div>
-          {allScreenshots.length > 1 && (
-            <button onClick={(e) => { e.stopPropagation(); setGalleryIndex((galleryIndex + 1) % allScreenshots.length); }}
+          {galleryScreenshots.length > 1 && (
+            <button onClick={(e) => { e.stopPropagation(); setGalleryIndex((galleryIndex + 1) % galleryScreenshots.length); }}
               style={{
                 position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)',
                 background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
