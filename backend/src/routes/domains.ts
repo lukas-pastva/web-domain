@@ -9,6 +9,23 @@ import { deleteDomainImages } from '../utils/imageStorage';
 
 const router = Router();
 
+// Get domain stats (must be before /:id to avoid route conflict)
+router.get('/stats/overview', async (_req: Request, res: Response) => {
+  try {
+    const domainRepo = AppDataSource.getRepository(Domain);
+    const total = await domainRepo.count();
+    const active = await domainRepo.count({ where: { active: true } });
+    const subCount = await AppDataSource.getRepository(Subdomain).count();
+    const dnsCount = await AppDataSource.getRepository(DnsRecord).count();
+    const ssCount = await AppDataSource.getRepository(Screenshot).count();
+
+    res.json({ totalDomains: total, activeDomains: active, totalSubdomains: subCount, totalDnsRecords: dnsCount, totalScreenshots: ssCount });
+  } catch (error) {
+    console.error('Error getting stats:', error);
+    res.status(500).json({ error: 'Failed to get stats' });
+  }
+});
+
 // Get all domains
 router.get('/', async (_req: Request, res: Response) => {
   try {
@@ -89,23 +106,6 @@ router.get('/:id', async (req: Request, res: Response) => {
   } catch (error) {
     console.error('Error getting domain:', error);
     res.status(500).json({ error: 'Failed to get domain' });
-  }
-});
-
-// Get domain stats
-router.get('/stats/overview', async (_req: Request, res: Response) => {
-  try {
-    const domainRepo = AppDataSource.getRepository(Domain);
-    const total = await domainRepo.count();
-    const active = await domainRepo.count({ where: { active: true } });
-    const subCount = await AppDataSource.getRepository(Subdomain).count();
-    const dnsCount = await AppDataSource.getRepository(DnsRecord).count();
-    const ssCount = await AppDataSource.getRepository(Screenshot).count();
-
-    res.json({ totalDomains: total, activeDomains: active, totalSubdomains: subCount, totalDnsRecords: dnsCount, totalScreenshots: ssCount });
-  } catch (error) {
-    console.error('Error getting stats:', error);
-    res.status(500).json({ error: 'Failed to get stats' });
   }
 });
 

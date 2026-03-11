@@ -6,6 +6,7 @@ function DomainDetail() {
   const { id } = useParams<{ id: string }>();
   const [domain, setDomain] = useState<DomainDetailType | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'subdomains' | 'dns' | 'whois'>('subdomains');
   const [galleryScreenshots, setGalleryScreenshots] = useState<Screenshot[]>([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
@@ -15,10 +16,17 @@ function DomainDetail() {
     if (!id) return;
     try {
       setLoading(true);
+      setError(null);
       const res = await domainsApi.getById(parseInt(id));
       setDomain(res.data);
-    } catch (error) {
-      console.error('Failed to fetch domain:', error);
+    } catch (err: unknown) {
+      console.error('Failed to fetch domain:', err);
+      const axiosErr = err as { response?: { status?: number; data?: { error?: string } }; message?: string };
+      if (axiosErr.response?.status === 404) {
+        setError('Domain not found');
+      } else {
+        setError(axiosErr.response?.data?.error || axiosErr.message || 'Failed to load domain');
+      }
     } finally {
       setLoading(false);
     }
@@ -39,7 +47,12 @@ function DomainDetail() {
   };
 
   if (loading) return <div className="empty-state">Loading...</div>;
-  if (!domain) return <div className="empty-state">Domain not found</div>;
+  if (error || !domain) return (
+    <div className="empty-state">
+      <p>{error || 'Domain not found'}</p>
+      <button className="btn btn-secondary" onClick={() => navigate('/')} style={{ marginTop: '1rem' }}>Back to Domains</button>
+    </div>
+  );
 
   const formatDate = (d: string | null) => d ? new Date(d).toLocaleString() : 'N/A';
 
