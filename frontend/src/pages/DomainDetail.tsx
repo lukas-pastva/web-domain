@@ -7,7 +7,8 @@ function DomainDetail() {
   const [domain, setDomain] = useState<DomainDetailType | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'subdomains' | 'dns' | 'whois'>('subdomains');
-  const [selectedScreenshot, setSelectedScreenshot] = useState<string | null>(null);
+  const [galleryOpen, setGalleryOpen] = useState(false);
+  const [galleryIndex, setGalleryIndex] = useState(0);
   const navigate = useNavigate();
 
   const fetchDomain = async () => {
@@ -56,15 +57,10 @@ function DomainDetail() {
   // Get domain-level screenshot (no subdomainId)
   const domainScreenshot = domain.screenshots.find(ss => !ss.subdomainId);
 
-  // Group screenshots by URL for the gallery in subdomains tab
-  const screenshotsByUrl = new Map<string, Screenshot[]>();
-  for (const ss of domain.screenshots) {
-    const key = ss.url;
-    if (!screenshotsByUrl.has(key)) {
-      screenshotsByUrl.set(key, []);
-    }
-    screenshotsByUrl.get(key)!.push(ss);
-  }
+  // All screenshots sorted newest first for gallery
+  const allScreenshots = [...domain.screenshots].sort(
+    (a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime()
+  );
 
   return (
     <div>
@@ -89,7 +85,7 @@ function DomainDetail() {
                 borderRadius: '8px', border: '1px solid var(--border)',
                 cursor: 'pointer', flexShrink: 0,
               }}
-              onClick={() => setSelectedScreenshot(domainScreenshot.localPath)}
+              onClick={() => { setGalleryIndex(0); setGalleryOpen(true); }}
               onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
             />
           )}
@@ -165,7 +161,11 @@ function DomainDetail() {
                                   borderRadius: '4px', border: '1px solid var(--border)',
                                   cursor: 'pointer', display: 'block',
                                 }}
-                                onClick={() => setSelectedScreenshot(subSS.localPath)}
+                                onClick={() => {
+                                  const idx = allScreenshots.findIndex(s => s.id === subSS.id);
+                                  setGalleryIndex(idx >= 0 ? idx : 0);
+                                  setGalleryOpen(true);
+                                }}
                                 onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
                               />
                             ) : (
@@ -197,31 +197,6 @@ function DomainDetail() {
             )}
           </div>
 
-          {/* Photo Gallery */}
-          {domain.screenshots.length > 0 && (
-            <div className="card" style={{ marginTop: '1.5rem' }}>
-              <h2 style={{ marginBottom: '1rem' }}>Photos</h2>
-              <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                {Array.from(screenshotsByUrl.entries()).map(([url, screenshots]) =>
-                  screenshots.map(ss => (
-                    <div key={ss.id} style={{
-                      cursor: 'pointer',
-                      border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden',
-                      background: 'var(--bg-primary)',
-                    }} onClick={() => setSelectedScreenshot(ss.localPath)}>
-                      <img src={`/api/images/${ss.localPath}`} alt={ss.url}
-                        style={{ width: '200px', height: '130px', objectFit: 'cover', display: 'block' }}
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                      <div style={{ padding: '0.35rem 0.5rem', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                        <div style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '190px' }}>{url}</div>
-                        <div>{new Date(ss.capturedAt).toLocaleString()}</div>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
         </div>
       )}
 
@@ -315,16 +290,39 @@ function DomainDetail() {
         </div>
       )}
 
-      {/* Screenshot Lightbox */}
-      {selectedScreenshot && (
+      {/* Screenshot Gallery Lightbox */}
+      {galleryOpen && allScreenshots.length > 0 && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0,0,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          zIndex: 1000, padding: '2rem'
-        }} onClick={() => setSelectedScreenshot(null)}>
-          <img src={`/api/images/${selectedScreenshot}`} alt="Screenshot"
-            style={{ maxWidth: '90%', maxHeight: '90vh', objectFit: 'contain', borderRadius: '8px' }}
-            onClick={e => e.stopPropagation()} />
+          zIndex: 1000, padding: '2rem',
+        }} onClick={() => setGalleryOpen(false)}>
+          {allScreenshots.length > 1 && (
+            <button onClick={(e) => { e.stopPropagation(); setGalleryIndex((galleryIndex - 1 + allScreenshots.length) % allScreenshots.length); }}
+              style={{
+                position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)',
+                background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
+                fontSize: '2rem', width: '48px', height: '48px', borderRadius: '50%',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>&#8249;</button>
+          )}
+          <div onClick={e => e.stopPropagation()} style={{ textAlign: 'center', maxWidth: '90%' }}>
+            <img src={`/api/images/${allScreenshots[galleryIndex].localPath}`} alt="Screenshot"
+              style={{ maxWidth: '100%', maxHeight: '80vh', objectFit: 'contain', borderRadius: '8px' }} />
+            <div style={{ color: 'rgba(255,255,255,0.7)', marginTop: '0.75rem', fontSize: '0.85rem' }}>
+              <div>{allScreenshots[galleryIndex].url}</div>
+              <div>{new Date(allScreenshots[galleryIndex].capturedAt).toLocaleString()} &mdash; {galleryIndex + 1} / {allScreenshots.length}</div>
+            </div>
+          </div>
+          {allScreenshots.length > 1 && (
+            <button onClick={(e) => { e.stopPropagation(); setGalleryIndex((galleryIndex + 1) % allScreenshots.length); }}
+              style={{
+                position: 'absolute', right: '1rem', top: '50%', transform: 'translateY(-50%)',
+                background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white',
+                fontSize: '2rem', width: '48px', height: '48px', borderRadius: '50%',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>&#8250;</button>
+          )}
         </div>
       )}
     </div>

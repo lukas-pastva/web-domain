@@ -135,9 +135,11 @@ export const takeScreenshotsForDomain = async (
     if (shouldScreenshotSubs) {
       for (const sub of subdomains) {
         if (sub.name === domainName) continue;
-        const result = await takeScreenshot(domainId, `https://${sub.name}`, 'subdomain', sub.id);
-        if (result) taken++;
-        else errors++;
+        for (const protocol of ['https', 'http']) {
+          const result = await takeScreenshot(domainId, `${protocol}://${sub.name}`, 'subdomain', sub.id);
+          if (result) taken++;
+          else errors++;
+        }
       }
     }
   }
