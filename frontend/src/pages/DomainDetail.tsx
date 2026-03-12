@@ -8,6 +8,7 @@ function DomainDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'subdomains' | 'dns' | 'whois'>('subdomains');
+  const [showInactive, setShowInactive] = useState(false);
   const [galleryScreenshots, setGalleryScreenshots] = useState<Screenshot[]>([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
   const navigate = useNavigate();
@@ -85,8 +86,8 @@ function DomainDetail() {
   return (
     <div>
       {/* Compact header */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
-        <button className="btn btn-sm btn-secondary" onClick={() => navigate('/')}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+        <button className="btn btn-sm btn-secondary" onClick={() => navigate('/')} style={{ flexShrink: 0 }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
@@ -104,11 +105,11 @@ function DomainDetail() {
             onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
           />
         )}
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <h1 style={{ margin: 0, fontSize: '1.25rem', lineHeight: 1.2 }}>{domain.name}</h1>
-          {domain.notes && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{domain.notes}</span>}
+        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
+          <h1 style={{ margin: 0, fontSize: '1.25rem', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{domain.name}</h1>
+          {domain.notes && <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{domain.notes}</span>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexShrink: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, fontSize: '0.75rem', color: 'var(--text-muted)', flexWrap: 'wrap' }}>
           <span title="Subdomains">{domain.subdomains.length} subs ({domain.subdomains.filter(s => s.active).length} active)</span>
           <span title="DNS Records">{domain.dnsRecords.length} DNS</span>
           <span title="Screenshots">{domain.screenshots.length} pics</span>
@@ -124,7 +125,7 @@ function DomainDetail() {
             onClick={() => setActiveTab(tab)}>
             {tab.charAt(0).toUpperCase() + tab.slice(1)}
             {tab === 'dns' && ` (${domain.dnsRecords.length})`}
-            {tab === 'subdomains' && ` (${domain.subdomains.length})`}
+            {tab === 'subdomains' && ` (${showInactive ? domain.subdomains.length : domain.subdomains.filter(s => s.active).length})`}
           </button>
         ))}
       </div>
@@ -133,7 +134,29 @@ function DomainDetail() {
       {activeTab === 'subdomains' && (
         <div>
           <div className="card">
-            <h2 style={{ marginBottom: '1rem' }}>Subdomains</h2>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1rem' }}>
+              <h2>Subdomains</h2>
+              {domain.subdomains.some(s => !s.active) && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-secondary)', userSelect: 'none' }}>
+                  <span>Show inactive</span>
+                  <div
+                    onClick={() => setShowInactive(!showInactive)}
+                    style={{
+                      width: '36px', height: '20px', borderRadius: '10px',
+                      background: showInactive ? 'var(--accent)' : 'var(--bg-tertiary)',
+                      position: 'relative', transition: 'background 0.2s', cursor: 'pointer',
+                      border: '1px solid var(--border)',
+                    }}
+                  >
+                    <div style={{
+                      width: '16px', height: '16px', borderRadius: '50%',
+                      background: 'var(--text-primary)', position: 'absolute', top: '1px',
+                      left: showInactive ? '17px' : '1px', transition: 'left 0.2s',
+                    }} />
+                  </div>
+                </label>
+              )}
+            </div>
             {domain.subdomains.length === 0 ? (
               <p className="text-muted">No subdomains discovered yet.</p>
             ) : (
@@ -150,7 +173,7 @@ function DomainDetail() {
                     </tr>
                   </thead>
                   <tbody>
-                    {domain.subdomains.map(sub => {
+                    {domain.subdomains.filter(sub => showInactive || sub.active).map(sub => {
                       const subSS = subScreenshotMap.get(sub.id);
                       return (
                         <tr key={sub.id}>
