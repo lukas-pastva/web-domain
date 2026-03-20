@@ -69,10 +69,20 @@ export const takeScreenshot = async (
     const page = await b.newPage();
     await page.setViewport({ width, height });
 
-    const response = await page.goto(url, {
-      waitUntil: 'networkidle2',
-      timeout,
-    });
+    let response;
+    try {
+      response = await page.goto(url, {
+        waitUntil: 'networkidle2',
+        timeout,
+      });
+    } catch (navErr) {
+      // Fallback: if networkidle2 times out, try with just load event
+      console.warn(`Screenshot networkidle2 failed for ${url}, retrying with load: ${navErr}`);
+      response = await page.goto(url, {
+        waitUntil: 'load',
+        timeout,
+      });
+    }
 
     httpStatus = response?.status() || null;
     const buffer = await page.screenshot({ fullPage: false }) as Buffer;
