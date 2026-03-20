@@ -54,6 +54,12 @@ export interface SubdomainEntry {
   active: boolean;
   httpStatus: number | null;
   title: string | null;
+  monitoringEnabled: boolean;
+  monitoringPath: string;
+  monitoringExpectedStatus: string;
+  monitoringStatus: string | null;
+  monitoringLastStatusCode: number | null;
+  monitoringLastCheckedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
 }
@@ -171,6 +177,8 @@ export const domainsApi = {
   update: (id: number, data: Partial<Domain>) => api.put<Domain>(`/domains/${id}`, data),
   delete: (id: number) => api.delete(`/domains/${id}`),
   getWhoisHistory: (id: number) => api.get<DomainInfo[]>(`/domains/${id}/whois-history`),
+  updateSubdomainMonitoring: (subId: number, data: { monitoringEnabled?: boolean; monitoringPath?: string; monitoringExpectedStatus?: string }) =>
+    api.put<SubdomainEntry>(`/domains/subdomains/${subId}/monitoring`, data),
 };
 
 export const scraperApi = {

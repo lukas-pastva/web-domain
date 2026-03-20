@@ -24,6 +24,24 @@ export class Subdomain {
   @Column({ type: 'varchar', length: 500, nullable: true })
   title!: string | null;
 
+  @Column({ type: 'boolean', default: false })
+  monitoringEnabled!: boolean;
+
+  @Column({ type: 'varchar', length: 255, default: '/' })
+  monitoringPath!: string;
+
+  @Column({ type: 'varchar', length: 10, default: '2xx' })
+  monitoringExpectedStatus!: string;
+
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  monitoringStatus!: string | null; // 'up' | 'down' | null
+
+  @Column({ type: 'int', nullable: true })
+  monitoringLastStatusCode!: number | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  monitoringLastCheckedAt!: Date | null;
+
   @CreateDateColumn()
   firstSeenAt!: Date;
 

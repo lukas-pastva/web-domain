@@ -227,4 +227,26 @@ router.get('/:id/whois-history', async (req: Request, res: Response) => {
   }
 });
 
+// Update subdomain monitoring settings
+router.put('/subdomains/:subId/monitoring', async (req: Request, res: Response) => {
+  try {
+    const subRepo = AppDataSource.getRepository(Subdomain);
+    const sub = await subRepo.findOne({ where: { id: parseInt(req.params.subId) } });
+
+    if (!sub) {
+      return res.status(404).json({ error: 'Subdomain not found' });
+    }
+
+    if (req.body.monitoringEnabled !== undefined) sub.monitoringEnabled = req.body.monitoringEnabled;
+    if (req.body.monitoringPath !== undefined) sub.monitoringPath = req.body.monitoringPath;
+    if (req.body.monitoringExpectedStatus !== undefined) sub.monitoringExpectedStatus = req.body.monitoringExpectedStatus;
+
+    const saved = await subRepo.save(sub);
+    res.json(saved);
+  } catch (error) {
+    console.error('Error updating subdomain monitoring:', error);
+    res.status(500).json({ error: 'Failed to update monitoring settings' });
+  }
+});
+
 export default router;

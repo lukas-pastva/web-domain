@@ -6,6 +6,7 @@ import { lookupWhois } from './whoisService';
 import { lookupDns } from './dnsService';
 import { discoverSubdomains } from './subdomainService';
 import { takeScreenshotsForDomain, closeBrowser } from './screenshotService';
+import { checkSubdomainMonitoring } from './monitoringService';
 import { getSettingNumber } from './settings';
 import { In } from 'typeorm';
 
@@ -129,6 +130,19 @@ export const scrapeAllDomains = async (configId?: number): Promise<void> => {
           }
         }
 
+        // Monitoring checks
+        try {
+          const monitorResults = await checkSubdomainMonitoring(domain.id);
+          for (const r of monitorResults) {
+            if (r.status === 'down') {
+              console.log(`[Monitoring] ${r.subdomainName} is DOWN (HTTP ${r.statusCode})`);
+            }
+          }
+        } catch (err) {
+          console.error(`Monitoring failed for ${domain.name}:`, err);
+          errors.push(`Monitoring ${domain.name}: ${err}`);
+        }
+
         // Update domain last scraped
         domain.lastScrapedAt = new Date();
         await domainRepo.save(domain);
@@ -195,6 +209,9 @@ export const scrapeSingleDomain = async (domainId: number): Promise<void> => {
     );
     run.screenshotsTaken = ssResult.taken;
     run.errorsCount = ssResult.errors;
+
+    // Monitoring checks
+    await checkSubdomainMonitoring(domain.id);
 
     domain.lastScrapedAt = new Date();
     await domainRepo.save(domain);

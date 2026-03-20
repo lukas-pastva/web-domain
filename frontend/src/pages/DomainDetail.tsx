@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { domainsApi, scraperApi, DomainDetail as DomainDetailType, Screenshot } from '../api/client';
+import { domainsApi, scraperApi, DomainDetail as DomainDetailType, Screenshot, SubdomainEntry } from '../api/client';
 
 function DomainDetail() {
   const { id } = useParams<{ id: string }>();
@@ -11,6 +11,8 @@ function DomainDetail() {
   const [showInactive, setShowInactive] = useState(false);
   const [galleryScreenshots, setGalleryScreenshots] = useState<Screenshot[]>([]);
   const [galleryIndex, setGalleryIndex] = useState(0);
+  const [editingMonitoring, setEditingMonitoring] = useState<number | null>(null);
+  const [monitoringForm, setMonitoringForm] = useState({ path: '/', expectedStatus: '2xx' });
   const navigate = useNavigate();
 
   const fetchDomain = async () => {
@@ -44,6 +46,28 @@ function DomainDetail() {
       setTimeout(fetchDomain, 5000);
     } catch (error) {
       console.error('Failed to trigger scrape:', error);
+    }
+  };
+
+  const handleMonitoringToggle = async (sub: SubdomainEntry) => {
+    try {
+      await domainsApi.updateSubdomainMonitoring(sub.id, { monitoringEnabled: !sub.monitoringEnabled });
+      fetchDomain();
+    } catch (error) {
+      console.error('Failed to toggle monitoring:', error);
+    }
+  };
+
+  const handleMonitoringSave = async (subId: number) => {
+    try {
+      await domainsApi.updateSubdomainMonitoring(subId, {
+        monitoringPath: monitoringForm.path,
+        monitoringExpectedStatus: monitoringForm.expectedStatus,
+      });
+      setEditingMonitoring(null);
+      fetchDomain();
+    } catch (error) {
+      console.error('Failed to save monitoring settings:', error);
     }
   };
 
@@ -168,6 +192,8 @@ function DomainDetail() {
                       <th>Subdomain</th>
                       <th>IP</th>
                       <th>Active</th>
+                      <th>Monitoring</th>
+                      <th>Status</th>
                       <th>First Seen</th>
                       <th>Last Seen</th>
                     </tr>
@@ -175,6 +201,7 @@ function DomainDetail() {
                   <tbody>
                     {domain.subdomains.filter(sub => showInactive || sub.active).map(sub => {
                       const subSS = subScreenshotMap.get(sub.id);
+                      const isEditing = editingMonitoring === sub.id;
                       return (
                         <tr key={sub.id}>
                           <td style={{ width: '80px', padding: '0.5rem' }}>
@@ -210,6 +237,81 @@ function DomainDetail() {
                             <span className={`badge ${sub.active ? 'badge-success' : 'badge-warning'}`}>
                               {sub.active ? 'Active' : 'Inactive'}
                             </span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <div
+                                onClick={() => handleMonitoringToggle(sub)}
+                                style={{
+                                  width: '36px', height: '20px', borderRadius: '10px',
+                                  background: sub.monitoringEnabled ? 'var(--accent)' : 'var(--bg-tertiary)',
+                                  position: 'relative', transition: 'background 0.2s', cursor: 'pointer',
+                                  border: '1px solid var(--border)', flexShrink: 0,
+                                }}
+                              >
+                                <div style={{
+                                  width: '16px', height: '16px', borderRadius: '50%',
+                                  background: 'var(--text-primary)', position: 'absolute', top: '1px',
+                                  left: sub.monitoringEnabled ? '17px' : '1px', transition: 'left 0.2s',
+                                }} />
+                              </div>
+                              {sub.monitoringEnabled && (
+                                <button
+                                  className="btn btn-sm btn-secondary"
+                                  style={{ padding: '0 4px', fontSize: '0.7rem', lineHeight: '1.2' }}
+                                  onClick={() => {
+                                    if (isEditing) {
+                                      setEditingMonitoring(null);
+                                    } else {
+                                      setMonitoringForm({ path: sub.monitoringPath, expectedStatus: sub.monitoringExpectedStatus });
+                                      setEditingMonitoring(sub.id);
+                                    }
+                                  }}
+                                  title="Configure monitoring"
+                                >
+                                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                                </button>
+                              )}
+                            </div>
+                            {isEditing && (
+                              <div style={{ marginTop: '0.4rem', display: 'flex', gap: '0.3rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <input
+                                  type="text" value={monitoringForm.path}
+                                  onChange={e => setMonitoringForm({ ...monitoringForm, path: e.target.value })}
+                                  placeholder="/"
+                                  style={{ width: '80px', padding: '2px 4px', fontSize: '0.75rem', borderRadius: '3px', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                />
+                                <input
+                                  type="text" value={monitoringForm.expectedStatus}
+                                  onChange={e => setMonitoringForm({ ...monitoringForm, expectedStatus: e.target.value })}
+                                  placeholder="2xx"
+                                  style={{ width: '50px', padding: '2px 4px', fontSize: '0.75rem', borderRadius: '3px', border: '1px solid var(--border)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                                />
+                                <button className="btn btn-sm btn-primary" style={{ padding: '1px 6px', fontSize: '0.7rem' }}
+                                  onClick={() => handleMonitoringSave(sub.id)}>Save</button>
+                              </div>
+                            )}
+                          </td>
+                          <td>
+                            {sub.monitoringEnabled ? (
+                              <div>
+                                <span className={`badge ${sub.monitoringStatus === 'up' ? 'badge-success' : sub.monitoringStatus === 'down' ? 'badge-error' : 'badge-warning'}`}>
+                                  {sub.monitoringStatus === 'up' ? 'UP' : sub.monitoringStatus === 'down' ? 'DOWN' : 'Pending'}
+                                </span>
+                                {sub.monitoringLastStatusCode !== null && (
+                                  <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginLeft: '0.3rem' }}>
+                                    {sub.monitoringLastStatusCode}
+                                  </span>
+                                )}
+                                {sub.monitoringLastCheckedAt && (
+                                  <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>
+                                    {new Date(sub.monitoringLastCheckedAt).toLocaleString()}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>-</span>
+                            )}
                           </td>
                           <td style={{ fontSize: '0.85rem' }}>{new Date(sub.firstSeenAt).toLocaleDateString()}</td>
                           <td style={{ fontSize: '0.85rem' }}>{new Date(sub.lastSeenAt).toLocaleDateString()}</td>

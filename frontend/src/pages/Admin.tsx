@@ -14,6 +14,8 @@ const SETTING_LABELS: Record<string, { label: string; unit?: string; type: 'numb
   max_subdomains_per_domain: { label: 'Max subdomains', type: 'number' },
   screenshot_subdomains: { label: 'Screenshot subdomains', type: 'boolean' },
   cleanup_days: { label: 'Cleanup after', unit: 'days', type: 'number' },
+  argo_event_url: { label: 'Argo Event URL', type: 'text' },
+  monitoring_timeout: { label: 'Monitoring timeout', unit: 'ms', type: 'number' },
 };
 
 function Admin() {
