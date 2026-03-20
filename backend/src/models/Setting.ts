@@ -31,6 +31,8 @@ export const DEFAULT_SETTINGS = {
   MAX_SUBDOMAINS_PER_DOMAIN: { key: 'max_subdomains_per_domain', value: '100', description: 'Max subdomains to discover per domain' },
   SCREENSHOT_SUBDOMAINS: { key: 'screenshot_subdomains', value: 'true', description: 'Also take screenshots of discovered subdomains' },
   CLEANUP_DAYS: { key: 'cleanup_days', value: '90', description: 'Delete old scrape data older than this many days' },
-  ARGO_EVENT_URL: { key: 'argo_event_url', value: '', description: 'Argo Events webhook URL for monitoring alerts (e.g. http://argo-events-webhook:12000/web-domain)' },
+  ARGO_WORKFLOW_URL: { key: 'argo_workflow_url', value: 'http://argo-workflows-ui.argo-workflows.svc.cluster.local:8080/api/workflows', description: 'Argo Workflows API URL for monitoring alerts' },
+  MONITORING_EMAIL_FROM: { key: 'monitoring_email_from', value: '', description: 'Email sender for monitoring alerts' },
+  MONITORING_EMAIL_TO: { key: 'monitoring_email_to', value: '', description: 'Email recipient for monitoring alerts' },
   MONITORING_TIMEOUT: { key: 'monitoring_timeout', value: '10000', description: 'HTTP monitoring check timeout (ms)' },
 };

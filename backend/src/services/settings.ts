@@ -33,6 +33,10 @@ export const refreshSettingsCache = async (): Promise<void> => {
 };
 
 export const getSetting = async (key: string, defaultValue?: string): Promise<string> => {
+  // Environment variables override DB settings (e.g. ARGO_WORKFLOW_URL env overrides argo_workflow_url setting)
+  const envValue = process.env[key.toUpperCase()];
+  if (envValue) return envValue;
+
   if (!cacheInitialized) {
     await refreshSettingsCache();
   }
