@@ -89,11 +89,10 @@ router.get('/:id', async (req: Request, res: Response) => {
       order: { name: 'ASC' },
     });
 
-    // Get latest screenshots
+    // Get latest screenshots (no limit — need all for subdomain previews)
     const screenshots = await AppDataSource.getRepository(Screenshot).find({
       where: { domainId: domain.id },
       order: { capturedAt: 'DESC' },
-      take: 50,
     });
 
     res.json({

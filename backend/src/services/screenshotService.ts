@@ -2,6 +2,7 @@ import puppeteer, { Browser } from 'puppeteer-core';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { IsNull } from 'typeorm';
 import { AppDataSource } from '../config/database';
 import { Screenshot } from '../models/Screenshot';
 import { getSettingNumber, getSettingBoolean } from './settings';
@@ -91,9 +92,9 @@ export const takeScreenshot = async (
     // Compute hash for deduplication
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');
 
-    // Check if latest screenshot for same domain+url has the same hash
+    // Check if latest screenshot for same domain+subdomain+url has the same hash (per-subdomain dedup)
     const latest = await screenshotRepo.findOne({
-      where: { domainId, url },
+      where: { domainId, subdomainId: subdomainId ?? IsNull(), url },
       order: { capturedAt: 'DESC' },
     });
 
