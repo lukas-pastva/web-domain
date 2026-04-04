@@ -28,6 +28,7 @@ const getBrowser = async (): Promise<Browser> => {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
+        '--ignore-certificate-errors',
       ],
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     });
@@ -78,7 +79,7 @@ export const takeScreenshot = async (
       });
     } catch (navErr) {
       // Fallback: if networkidle2 times out, try with just load event
-      console.warn(`Screenshot networkidle2 failed for ${url}, retrying with load: ${navErr}`);
+      // Silently retry with load event
       response = await page.goto(url, {
         waitUntil: 'load',
         timeout,
@@ -118,7 +119,7 @@ export const takeScreenshot = async (
 
     return await screenshotRepo.save(screenshot);
   } catch (err) {
-    console.error(`Screenshot failed for ${url}:`, err);
+    // Screenshot failed silently
     return null;
   }
 };
