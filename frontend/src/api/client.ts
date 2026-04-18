@@ -114,6 +114,7 @@ export interface ScrapeRun {
   screenshotsTaken: number;
   errorsCount: number;
   errorMessages: string | null;
+  logMessages: string | null;
   startedAt: string;
   completedAt: string | null;
 }
@@ -187,7 +188,7 @@ export const domainsApi = {
 export const scraperApi = {
   getStatus: () => api.get<ScraperStatus>('/scraper/status'),
   trigger: (configId?: number) => api.post<{ success: boolean; message: string }>('/scraper/trigger', { configId }),
-  triggerDomain: (domainId: number) => api.post<{ success: boolean; message: string }>(`/scraper/trigger/${domainId}`),
+  triggerDomain: (domainId: number) => api.post<{ success: boolean; message: string; runId: number | null }>(`/scraper/trigger/${domainId}`),
 };
 
 export const scrapeConfigsApi = {

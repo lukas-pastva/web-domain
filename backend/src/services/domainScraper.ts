@@ -198,7 +198,7 @@ export const scrapeAllDomains = async (configId?: number): Promise<void> => {
   }
 };
 
-export const scrapeSingleDomain = async (domainId: number): Promise<void> => {
+export const scrapeSingleDomain = async (domainId: number): Promise<number> => {
   const domainRepo = AppDataSource.getRepository(Domain);
   const domain = await domainRepo.findOne({ where: { id: domainId } });
   if (!domain) throw new Error('Domain not found');
@@ -207,45 +207,68 @@ export const scrapeSingleDomain = async (domainId: number): Promise<void> => {
   const run = new ScrapeRun();
   run.status = 'running';
   run.domainsTotal = 1;
+  run.logMessages = '';
   await runRepo.save(run);
 
+  const addLog = async (msg: string) => {
+    const ts = new Date().toLocaleTimeString();
+    run.logMessages = (run.logMessages || '') + `[${ts}] ${msg}\n`;
+    await runRepo.save(run);
+  };
+
   try {
+    await addLog(`Starting scrape for ${domain.name}`);
+
+    await addLog('WHOIS lookup...');
     await lookupWhois(domain.id, domain.name);
     run.whoisLookups++;
+    await addLog('WHOIS done');
 
+    await addLog('DNS lookup...');
     const records = await lookupDns(domain.id, domain.name);
     run.dnsLookups = records.length;
+    await addLog(`DNS done (${records.length} records)`);
 
+    await addLog('Discovering subdomains...');
     const subs = await discoverSubdomains(domain.id, domain.name);
     run.subdomainsFound = subs.length;
+    await addLog(`Subdomains done (${subs.length} found)`);
 
+    await addLog('Taking screenshots...');
     const ssResult = await takeScreenshotsForDomain(
       domain.id, domain.name, true,
       subs.filter(s => s.active).map(s => ({ id: s.id, name: s.name }))
     );
     run.screenshotsTaken = ssResult.taken;
     run.errorsCount = ssResult.errors;
+    await addLog(`Screenshots done (${ssResult.taken} taken)`);
 
-    // Monitoring checks
+    await addLog('Monitoring checks...');
     await checkSubdomainMonitoring(domain.id);
+    await addLog('Monitoring done');
 
-    // Certificate checks
+    await addLog('Certificate checks...');
     await checkCertificates(domain.id);
+    await addLog('Certificates done');
 
     domain.lastScrapedAt = new Date();
     await domainRepo.save(domain);
 
     run.domainsProcessed = 1;
     run.status = 'completed';
+    await addLog('Scrape completed successfully');
   } catch (err) {
     run.status = 'failed';
     run.errorMessages = String(err);
     run.errorsCount++;
+    await addLog(`ERROR: ${err}`);
   } finally {
     run.completedAt = new Date();
     await runRepo.save(run);
     await closeBrowser();
   }
+
+  return run.id;
 };
 
 export const getScraperState = () => ({

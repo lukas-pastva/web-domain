@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { domainsApi, scraperApi, DomainDetail as DomainDetailType, Screenshot, SubdomainEntry } from '../api/client';
+import { domainsApi, scraperApi, scrapeHistoryApi, DomainDetail as DomainDetailType, Screenshot, SubdomainEntry } from '../api/client';
 
 function DomainDetail() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +13,12 @@ function DomainDetail() {
   const [galleryIndex, setGalleryIndex] = useState(0);
   const [editingMonitoring, setEditingMonitoring] = useState<number | null>(null);
   const [monitoringForm, setMonitoringForm] = useState({ path: '/', expectedStatus: '2xx' });
+  const [scraping, setScraping] = useState(false);
+  const [scrapeRunId, setScrapeRunId] = useState<number | null>(null);
+  const [scrapeLogs, setScrapeLogs] = useState<string>('');
+  const [scrapeStatus, setScrapeStatus] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const logEndRef = useRef<HTMLPreElement>(null);
   const navigate = useNavigate();
 
   const fetchDomain = async () => {
@@ -39,15 +45,54 @@ function DomainDetail() {
     fetchDomain();
   }, [id]);
 
-  const handleScrape = async () => {
-    if (!domain) return;
-    try {
-      await scraperApi.triggerDomain(domain.id);
-      setTimeout(fetchDomain, 5000);
-    } catch (error) {
-      console.error('Failed to trigger scrape:', error);
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
     }
   };
+
+  const handleScrape = async () => {
+    if (!domain || scraping) return;
+    setScraping(true);
+    setScrapeLogs('');
+    setScrapeStatus('running');
+    try {
+      const res = await scraperApi.triggerDomain(domain.id);
+      const runId = res.data.runId;
+      if (runId) {
+        setScrapeRunId(runId);
+        // Poll for logs
+        pollRef.current = setInterval(async () => {
+          try {
+            const runRes = await scrapeHistoryApi.getRun(runId);
+            const run = runRes.data;
+            setScrapeLogs(run.logMessages || '');
+            setScrapeStatus(run.status);
+            if (run.status !== 'running') {
+              stopPolling();
+              setScraping(false);
+              fetchDomain();
+            }
+          } catch {
+            stopPolling();
+            setScraping(false);
+          }
+        }, 1500);
+      } else {
+        // Fallback if no runId returned
+        setTimeout(() => { setScraping(false); fetchDomain(); }, 5000);
+      }
+    } catch (error) {
+      console.error('Failed to trigger scrape:', error);
+      setScraping(false);
+      setScrapeStatus(null);
+    }
+  };
+
+  useEffect(() => {
+    return () => stopPolling();
+  }, []);
 
   const handleMonitoringToggle = async (sub: SubdomainEntry) => {
     try {
@@ -138,9 +183,45 @@ function DomainDetail() {
           <span title="DNS Records">{domain.dnsRecords.length} DNS</span>
           <span title="Screenshots">{domain.screenshots.length} pics</span>
           <span title="Last Scraped">{domain.lastScrapedAt ? new Date(domain.lastScrapedAt).toLocaleDateString() : 'Never'}</span>
-          <button className="btn btn-sm btn-primary" onClick={handleScrape}>Scrape</button>
+          <button className="btn btn-sm btn-primary" onClick={handleScrape} disabled={scraping}
+            style={scraping ? { opacity: 0.7, cursor: 'not-allowed' } : undefined}>
+            {scraping ? (
+              <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  style={{ animation: 'spin 1s linear infinite' }}>
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                Scraping...
+              </span>
+            ) : 'Scrape'}
+          </button>
         </div>
       </div>
+
+      {/* Scrape Log */}
+      {(scraping || scrapeLogs) && (
+        <details style={{ marginBottom: '1rem' }}>
+          <summary style={{ cursor: 'pointer', fontSize: '0.85rem', color: 'var(--text-muted)', userSelect: 'none', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <span>Scrape Log</span>
+            {scraping && (
+              <span className="badge badge-warning" style={{ fontSize: '0.7rem' }}>Running</span>
+            )}
+            {scrapeStatus === 'completed' && (
+              <span className="badge badge-success" style={{ fontSize: '0.7rem' }}>Done</span>
+            )}
+            {scrapeStatus === 'failed' && (
+              <span className="badge badge-error" style={{ fontSize: '0.7rem' }}>Failed</span>
+            )}
+          </summary>
+          <pre ref={logEndRef} style={{
+            marginTop: '0.5rem', padding: '0.75rem', background: 'var(--bg-primary)',
+            borderRadius: '8px', border: '1px solid var(--border)', overflow: 'auto',
+            maxHeight: '250px', fontSize: '0.75rem', whiteSpace: 'pre-wrap', color: 'var(--text-secondary)',
+          }}>
+            {scrapeLogs || 'Waiting for logs...'}
+          </pre>
+        </details>
+      )}
 
       {/* Tabs */}
       <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.5rem' }}>

@@ -35,6 +35,9 @@ export class ScrapeRun {
   @Column({ type: 'text', nullable: true })
   errorMessages!: string | null;
 
+  @Column({ type: 'text', nullable: true })
+  logMessages!: string | null;
+
   @CreateDateColumn()
   startedAt!: Date;
 
