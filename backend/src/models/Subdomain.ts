@@ -42,6 +42,15 @@ export class Subdomain {
   @Column({ type: 'datetime', nullable: true })
   monitoringLastCheckedAt!: Date | null;
 
+  @Column({ type: 'datetime', nullable: true })
+  certExpiresAt!: Date | null;
+
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  certIssuer!: string | null;
+
+  @Column({ type: 'datetime', nullable: true })
+  certLastCheckedAt!: Date | null;
+
   @CreateDateColumn()
   firstSeenAt!: Date;
 

@@ -35,4 +35,5 @@ export const DEFAULT_SETTINGS = {
   MONITORING_EMAIL_FROM: { key: 'monitoring_email_from', value: '', description: 'Email sender for monitoring alerts' },
   MONITORING_EMAIL_TO: { key: 'monitoring_email_to', value: '', description: 'Email recipient for monitoring alerts' },
   MONITORING_TIMEOUT: { key: 'monitoring_timeout', value: '10000', description: 'HTTP monitoring check timeout (ms)' },
+  CERT_WARNING_DAYS: { key: 'cert_warning_days', value: '30', description: 'Alert when SSL certificate expires within this many days' },
 };

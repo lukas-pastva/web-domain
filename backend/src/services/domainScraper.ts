@@ -7,6 +7,7 @@ import { lookupDns } from './dnsService';
 import { discoverSubdomains } from './subdomainService';
 import { takeScreenshotsForDomain, closeBrowser } from './screenshotService';
 import { checkSubdomainMonitoring } from './monitoringService';
+import { checkCertificates } from './certService';
 import { getSettingNumber } from './settings';
 import { In } from 'typeorm';
 
@@ -143,6 +144,21 @@ export const scrapeAllDomains = async (configId?: number): Promise<void> => {
           errors.push(`Monitoring ${domain.name}: ${err}`);
         }
 
+        // Certificate checks
+        try {
+          const certResults = await checkCertificates(domain.id);
+          for (const r of certResults) {
+            if (r.expired) {
+              console.log(`[CertCheck] ${r.subdomainName} certificate EXPIRED`);
+            } else if (r.expiresSoon) {
+              console.log(`[CertCheck] ${r.subdomainName} certificate expires in ${r.daysUntilExpiry} days`);
+            }
+          }
+        } catch (err) {
+          console.error(`Certificate check failed for ${domain.name}:`, err);
+          errors.push(`CertCheck ${domain.name}: ${err}`);
+        }
+
         // Update domain last scraped
         domain.lastScrapedAt = new Date();
         await domainRepo.save(domain);
@@ -212,6 +228,9 @@ export const scrapeSingleDomain = async (domainId: number): Promise<void> => {
 
     // Monitoring checks
     await checkSubdomainMonitoring(domain.id);
+
+    // Certificate checks
+    await checkCertificates(domain.id);
 
     domain.lastScrapedAt = new Date();
     await domainRepo.save(domain);

@@ -60,6 +60,9 @@ export interface SubdomainEntry {
   monitoringStatus: string | null;
   monitoringLastStatusCode: number | null;
   monitoringLastCheckedAt: string | null;
+  certExpiresAt: string | null;
+  certIssuer: string | null;
+  certLastCheckedAt: string | null;
   firstSeenAt: string;
   lastSeenAt: string;
 }

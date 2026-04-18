@@ -194,6 +194,7 @@ function DomainDetail() {
                       <th>Active</th>
                       <th>Monitoring</th>
                       <th>Status</th>
+                      <th>Certificate</th>
                       <th>First Seen</th>
                       <th>Last Seen</th>
                     </tr>
@@ -310,6 +311,27 @@ function DomainDetail() {
                                 )}
                               </div>
                             ) : (
+                              <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>-</span>
+                            )}
+                          </td>
+                          <td>
+                            {sub.certExpiresAt ? (() => {
+                              const days = Math.floor((new Date(sub.certExpiresAt).getTime() - Date.now()) / 86400000);
+                              const expired = days < 0;
+                              const warning = !expired && days <= 30;
+                              return (
+                                <div>
+                                  <span className={`badge ${expired ? 'badge-error' : warning ? 'badge-warning' : 'badge-success'}`}>
+                                    {expired ? `Expired ${Math.abs(days)}d ago` : `${days}d left`}
+                                  </span>
+                                  {sub.certIssuer && (
+                                    <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>
+                                      {sub.certIssuer}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })() : (
                               <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>-</span>
                             )}
                           </td>
