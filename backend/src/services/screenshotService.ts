@@ -20,7 +20,10 @@ const ensureDir = (dirPath: string): void => {
 };
 
 const getBrowser = async (): Promise<Browser> => {
-  if (!browser || !browser.connected) {
+  if (browser && !browser.isConnected()) {
+    await closeBrowser();
+  }
+  if (!browser) {
     browser = await puppeteer.launch({
       headless: true,
       args: [
@@ -28,19 +31,32 @@ const getBrowser = async (): Promise<Browser> => {
         '--disable-setuid-sandbox',
         '--disable-dev-shm-usage',
         '--disable-gpu',
+        '--disable-crash-reporter',
+        '--disable-breakpad',
+        '--no-zygote',
+        '--disable-extensions',
         '--ignore-certificate-errors',
       ],
       executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
     });
+    browser.once('disconnected', () => { browser = null; });
   }
   return browser;
 };
 
 export const closeBrowser = async (): Promise<void> => {
-  if (browser) {
-    await browser.close();
-    browser = null;
+  if (!browser) return;
+  const b = browser;
+  browser = null;
+  try {
+    await b.close();
+  } catch {
+    // browser.close() can hang/throw if chromium already died - make sure the process is gone
   }
+  try {
+    const proc = b.process();
+    if (proc && proc.exitCode === null) proc.kill('SIGKILL');
+  } catch {}
 };
 
 export const takeScreenshot = async (
@@ -69,26 +85,30 @@ export const takeScreenshot = async (
   try {
     const b = await getBrowser();
     const page = await b.newPage();
-    await page.setViewport({ width, height });
-
-    let response;
+    let buffer: Buffer;
     try {
-      response = await page.goto(url, {
-        waitUntil: 'networkidle2',
-        timeout,
-      });
-    } catch (navErr) {
-      // Fallback: if networkidle2 times out, try with just load event
-      // Silently retry with load event
-      response = await page.goto(url, {
-        waitUntil: 'load',
-        timeout,
-      });
-    }
+      await page.setViewport({ width, height });
 
-    httpStatus = response?.status() || null;
-    const buffer = await page.screenshot({ fullPage: false }) as Buffer;
-    await page.close();
+      let response;
+      try {
+        response = await page.goto(url, {
+          waitUntil: 'networkidle2',
+          timeout,
+        });
+      } catch (navErr) {
+        // Fallback: if networkidle2 times out, try with just load event
+        // Silently retry with load event
+        response = await page.goto(url, {
+          waitUntil: 'load',
+          timeout,
+        });
+      }
+
+      httpStatus = response?.status() || null;
+      buffer = await page.screenshot({ fullPage: false }) as Buffer;
+    } finally {
+      await page.close().catch(() => {});
+    }
 
     // Compute hash for deduplication
     const imageHash = crypto.createHash('sha256').update(buffer).digest('hex');

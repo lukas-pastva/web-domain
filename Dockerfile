@@ -20,6 +20,7 @@ WORKDIR /app
 
 # Install Chromium, whois, and dependencies for Puppeteer
 RUN apk add --no-cache \
+    tini \
     chromium \
     nss \
     freetype \
@@ -53,4 +54,6 @@ ENV PVC_MOUNT_PATH=/data/images
 
 EXPOSE 3000
 
+# tini reaps zombie chromium/whois processes (node as PID 1 does not)
+ENTRYPOINT ["/sbin/tini", "--"]
 CMD ["node", "dist/index.js"]
